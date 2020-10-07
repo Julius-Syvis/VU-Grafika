@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Fraktalas</title>
+</head>
+
+<body>
+  <h1>Fraktalas</h1>
+  <div>
+    Žingsnių skaičius:
+    <input type="number" id="fractalSteps" name="quantity" min="0" max="8" style="height:25px; font-size:16px; ">
+    <p></p>
+    <input type="button" id="generateFractalButton" value="Piešti" style="height:30px" />
+  </div>
+  <p></p>
+  <canvas id="canvas1" width="650" height="650"></canvas>
+  <p></p>
+  <h1>Transformacijos</h1>
+  <p>
+    Čia \(w\) - paveikslėlio kraštinės ilgis.
+  </p>
+  <p style="font-size:20px; ">
+    \(
+    \begin{align}
+
+    &T_1=
+    \left(
+    \begin{matrix}
+    { \cos(\pi / 2) \over 2 } & {- \sin(\pi / 2) \over 2 } & { w \over 2 } \\
+    { \sin(\pi / 2) \over 2 } & { \cos(\pi / 2) \over 2 } & { 0 } \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    =
+    \left(
+    \begin{matrix}
+    { 1 \over 2 } & 0 & { w \over 2 } \\
+    0 & { 1 \over 2 } & 0 \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    \cdot
+    \left(
+    \begin{matrix}
+    \cos(\pi / 2) & - \sin(\pi / 2) & 0 \\
+    \sin(\pi / 2) & \cos(\pi / 2) & 0 \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+
+    \\
+    \\
+
+    &T_2=
+    \left(
+    \begin{matrix}
+    { -\cos(\pi / 2) \over 2 } & {\sin(\pi / 2) \over 2 } & { w \over 2 } \\
+    { \sin(\pi / 2) \over 2 } & { \cos(\pi / 2) \over 2 } & { 0 } \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    =
+    \left(
+    \begin{matrix}
+    - {1 \over 2} & 0 & { w \over 2 } \\
+    0 & {1 \over 2} & { 0 } \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    \cdot
+    \left(
+    \begin{matrix}
+    \cos(\pi / 2) & - \sin(\pi / 2) & 0 \\
+    \sin(\pi / 2) & \cos(\pi / 2) & 0 \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+
+    \\
+    \\
+
+    &T_3=
+    \left(
+    \begin{matrix}
+    { -\cos(\pi) \over 4 } & {\sin(\pi) \over 4 } & { w \over 4 } \\
+    { \sin(\pi) \over 4 } & { \cos(\pi) \over 4 } & { 3 \cdot w \over 4 } \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    =
+    \left(
+    \begin{matrix}
+    - {1 \over 4} & 0 & { w \over 4 } \\
+    0 & {1 \over 4} & { 3 \cdot w \over 4 } \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+    \cdot
+    \left(
+    \begin{matrix}
+    \cos(\pi) & - \sin(\pi) & 0 \\
+    \sin(\pi) & \cos(\pi) & 0 \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+
+    \\
+    \\
+
+    &T_4=
+    \left(
+    \begin{matrix}
+    1 \over 2 & 0 & w \over 2 \\
+    0 & 1 \over 2 & w \over 2 \\
+    0 & 0 & 1 \\
+    \end {matrix}
+    \right)
+
+    \\
+
+    \end{align}
+    \)
+  </p>
+  <h2>Animuotos transformacijos</h2>
+  <p> Išskirti žingsniai: atspindys, skaliavimas, posūkis bei postūmis. </p>
+  <table>
+    <li> T1: skaliavimas → postūmis → posūkis </li>
+    <li> T2: skaliavimas → postūmis → atspindys → posūkis </li>
+    <li> T3: skaliavimas → postūmis → atspindys → posūkis </li>
+    <li> T4: skaliavimas → postūmis </li>
+  </table>
+  <br>
+  <div>
+    <input type="button" id="clearTransformation" style="height:30px; margin:10px" value="Pradinė figūra">
+    <input type="button" id="T1" style="height:30px; margin:10px" value="T1 - 3 žingsniai">
+    <input type="button" id="T2" style="height:30px; margin:10px" value="T2 - 4 žingsniai">
+    <input type="button" id="T3" style="height:30px; margin:10px" value="T3 - 4 žingsniai">
+    <input type="button" id="T4" style="height:30px; margin:10px" value="T4 - 2 žingsniai">
+  </div>
+  <canvas id="canvas2" width="650" height="650"></canvas>
+  <script>
+    // Draw initially
+    drawFractal(document.getElementById("canvas1"), 5, "black");
+    drawFractal(document.getElementById("canvas2"), 0, "black");
+
+    // Recursive drawing functions
+    function drawFractal(canvas, step, color) {
+      var ctx = canvas.getContext("2d");
+      ctx.resetTransform();
+      var w = canvas.width;
+      var h = canvas.height;
+      clear(ctx, w, h);
+      drawF(ctx, w, h, step, color, true);
+    }
+
+    function clear(ctx, w, h) {
+      ctx.fillStyle = "white";
+      ctx.lineWidth = 4;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeRect(0, 0, w, h);
+    }
+
+    function drawF(ctx, w, h, step, color, firstIteration) {
+      step = Math.min(step, 8);
+      if (step > 0) {
+        step = step - 1;
+        ctx.save();
+        ctx.save();
+        ctx.save();
+        ctx.save();
+
+        // Upper left - T1
+        var rads = Math.PI / 2;
+        ctx.transform(Math.cos(rads) / 2, Math.sin(rads) / 2, -Math.sin(rads) / 2, Math.cos(rads) / 2, w / 2, 0);
+        if (firstIteration) color = "green";
+        drawF(ctx, w, h, step, color);
+        ctx.restore();
+
+        // Upper right - T2
+        var rads = Math.PI / 2;
+        ctx.transform(-Math.cos(rads) / 2, Math.sin(rads) / 2, Math.sin(rads) / 2, Math.cos(rads) / 2, w / 2, 0);
+        if (firstIteration) color = "blue";
+        drawF(ctx, w, h, step, color);
+        ctx.restore();
+
+        // Lower left - T3
+        var rads = Math.PI;
+        ctx.transform(-Math.cos(rads) / 4, Math.sin(rads) / 4, Math.sin(rads) / 4, Math.cos(rads) / 4, w / 4, 3 / 4 * w);
+        if (firstIteration) color = "red";
+        drawF(ctx, w, h, step, color);
+        ctx.restore();
+
+        // Lower right - T4
+        ctx.transform(1 / 2, 0, 0, 1 / 2, w / 2, w / 2);
+        if (firstIteration) color = "purple";
+        drawF(ctx, w, h, step, color);
+        ctx.restore();
+      } else if (step == 0) {
+        drawSegment(ctx, w, h, color)
+      };
+    }
+
+    function drawSegment(ctx, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(w / 3, w / 8);
+      ctx.lineTo((2 * w) / 3, w / 8);
+      ctx.lineTo(w - w / 16, w / 2);
+      ctx.lineTo(w - w / 16, w - w / 16);
+      ctx.lineTo(w / 16, w / 2);
+      ctx.fill();
+    }
+
+    // Animation functions
+    function animateTransformation(canvas, t_string) {
+      busy = true;
+      var ctx = canvas.getContext("2d");
+      ctx.resetTransform();
+      var w = canvas.width;
+      var h = canvas.height;
+      var initialDelay = 300;
+      var frameDelay = 10;
+      var totalFrames = 100;
+      switch (t_string) {
+        case "t1": {
+          color = "green";
+          clear(ctx, w, h);
+          drawSegment(ctx, w, h, color);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT1(ctx, w, h, i / totalFrames, 0, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT1(ctx, w, h, 1, i / totalFrames, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 2 + totalFrames * frameDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT1(ctx, w, h, 1, 1, i / totalFrames)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 3 + (totalFrames * frameDelay) * 2);
+          setTimeout(() => { busy = false; },
+            initialDelay * 4 + (totalFrames * frameDelay) * 3)
+        }
+          break;
+        case "t2": {
+          color = "blue";
+          clear(ctx, w, h);
+          drawSegment(ctx, w, h, color);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT2(ctx, w, h, i / totalFrames, 0, 0, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT2(ctx, w, h, 1, i / totalFrames, 0, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 2 + totalFrames * frameDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT2(ctx, w, h, 1, 1, i / totalFrames, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 3 + totalFrames * frameDelay * 2);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT2(ctx, w, h, 1, 1, 1, i / totalFrames)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 4 + totalFrames * frameDelay * 3);
+          setTimeout(() => { busy = false; },
+            initialDelay * 5 + totalFrames * frameDelay * 4)
+        }
+          break;
+        case "t3": {
+          color = "red";
+          clear(ctx, w, h);
+          drawSegment(ctx, w, h, color);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT3(ctx, w, h, i / totalFrames, 0, 0, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT3(ctx, w, h, 1, i / totalFrames, 0, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 2 + totalFrames * frameDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT3(ctx, w, h, 1, 1, i / totalFrames, 0)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 3 + totalFrames * frameDelay * 2);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT3(ctx, w, h, 1, 1, 1, i / totalFrames)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 4 + totalFrames * frameDelay * 3);
+          setTimeout(() => { busy = false; },
+            initialDelay * 5 + totalFrames * frameDelay * 4)
+        }
+          break;
+          break;
+        case "t4": {
+          color = "purple";
+          clear(ctx, w, h);
+          drawSegment(ctx, w, h, color);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT4(ctx, w, h, i / totalFrames, 0,)
+            }, frameDelay, totalFrames);
+          }, initialDelay);
+          setTimeout(() => {
+            recursiveCall(i => {
+              drawT4(ctx, w, h, 1, i / totalFrames)
+            }, frameDelay, totalFrames);
+          }, initialDelay * 2 + totalFrames * frameDelay);
+          setTimeout(() => { busy = false; },
+            initialDelay * 3 + totalFrames * frameDelay * 2)
+        }
+          break;
+      }
+    }
+
+    // Upper left
+    function drawT1(ctx, w, h, t1, t2, t3) {
+      ctx.resetTransform();
+      clear(ctx, w, h);
+      var scale = 1 * (1 - t1) + 1 / 2 * (t1);
+      ctx.transform(scale, 0, 0, scale, 0, 0);
+      var dist = w * t2;
+      ctx.transform(1, 0, 0, 1, dist, 0);
+      var rads = Math.PI / 2 * t3;
+      ctx.transform(Math.cos(rads), Math.sin(rads), -Math.sin(rads), Math.cos(rads), 0, 0);
+      drawSegment(ctx, w, h, color);
+    }
+
+    // Upper right
+    function drawT2(ctx, w, h, t1, t2, t3, t4) {
+      ctx.resetTransform();
+      clear(ctx, w, h);
+      var scalex = 1 * (1 - t1) + 1 / 2 * (t1);
+      var scaley = 1 * (1 - t1) + 1 / 2 * (t1);
+      ctx.transform(scalex, 0, 0, scaley, 0, 0);
+      var dist = w * t2;
+      ctx.transform(1, 0, 0, 1, dist, 0);
+      var scale = 1 * (1 - t3) + -1 * t3;
+      ctx.transform(scale, 0, 0, 1, 0, 0);
+      var rads = Math.PI / 2 * t4;
+      ctx.transform(Math.cos(rads), Math.sin(rads), -Math.sin(rads), Math.cos(rads), 0, 0);
+      drawSegment(ctx, w, h, color);
+    }
+
+    // Lower left
+    function drawT3(ctx, w, h, t1, t2, t3, t4) {
+      ctx.resetTransform();
+      clear(ctx, w, h);
+      var scale = 1 * (1 - t1) + 1 / 4 * (t1);
+      ctx.transform(scale, 0, 0, scale, 0, 0);
+      var dist = w * t2;
+      ctx.transform(1, 0, 0, 1, dist, 3 * dist);
+      scale = 1 * (1 - t3) - 1 * t3;
+      ctx.transform(scale, 0, 0, 1, 0, 0);
+      var rads = Math.PI * t4;
+      ctx.transform(Math.cos(rads), Math.sin(rads), -Math.sin(rads), Math.cos(rads), 0, 0);
+      drawSegment(ctx, w, h, color);
+    }
+
+    // Lower right
+    function drawT4(ctx, w, h, t1, t2) {
+      ctx.resetTransform();
+      clear(ctx, w, h);
+      var scale = 1 * (1 - t1) + 1 / 2 * (t1);
+      ctx.transform(scale, 0, 0, scale, 0, 0);
+      var dist = w * t2;
+      ctx.transform(1, 0, 0, 1, dist, dist);
+      drawSegment(ctx, w, h, color);
+    }
+
+    function recursiveCall(func, delay, maxCounter, counter = 0) {
+      func(counter);
+      setTimeout(() => {
+        if (counter < maxCounter) {
+          counter++;
+          recursiveCall(func, delay, maxCounter, counter);
+        }
+      }, delay);
+    }
+  </script>
+  <script>
+    var canvas1 = document.getElementById("canvas1");
+    var canvas2 = document.getElementById("canvas2");
+
+    // Add UI listeners
+    document.getElementById("generateFractalButton").addEventListener("click",
+      () => {
+        var value = document.getElementById("fractalSteps").value;
+        drawFractal(canvas1, value, "black");
+      });
+    document.getElementById("fractalSteps").value = 5;
+
+    var busy = false;
+    document.getElementById("clearTransformation").addEventListener("click",
+      () => {
+        if (!busy) { drawFractal(canvas2, 0, "black"); }
+      });
+    document.getElementById("T1").addEventListener("click",
+      () => {
+        if (!busy) { animateTransformation(canvas2, "t1"); }
+      });
+    document.getElementById("T2").addEventListener("click",
+      () => {
+        if (!busy) { animateTransformation(canvas2, "t2"); }
+      });
+    document.getElementById("T3").addEventListener("click",
+      () => {
+        if (!busy) { animateTransformation(canvas2, "t3"); }
+      });
+    document.getElementById("T4").addEventListener("click",
+      () => {
+        if (!busy) { animateTransformation(canvas2, "t4"); }
+      });
+  </script>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+      jax: ["input/TeX","output/HTML-CSS"],
+      displayAlign: "left"
+    });
+  </script>
+</body>
+
+</html>
