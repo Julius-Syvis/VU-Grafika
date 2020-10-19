@@ -278,13 +278,13 @@
     function drawT2(ctx, w, h, t) {
       ctx.resetTransform();
       clear(ctx, w, h);
-      var distX = w / 2 * t + w / 4 * Math.sin(Math.PI * t);
-      var distY = -w / 8 * Math.sin(Math.PI * t);
+      var distX = w / 2 * t;
+      var distY = w / 8 * Math.sin(Math.PI * t);
       ctx.transform(1, 0, 0, 1, distX, distY);
-      var scale = 1 - 2 * t;
-      ctx.transform(scale, 0, 0, 1, 0, 0);
       var rads = Math.PI / 2 * t;
       ctx.transform(Math.cos(rads), Math.sin(rads), -Math.sin(rads), Math.cos(rads), 0, 0);
+      var scale = 1 - 2 * t;
+      ctx.transform(1, 0, 0, scale, 0, 0);
       var scaley = 1 - t / 2;
       var scalex = 1 - t / 2;
       ctx.transform(scalex, 0, 0, scaley, 0, 0);
