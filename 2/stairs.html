@@ -1,0 +1,399 @@
+<html>
+
+<head>
+    <title>Spiral Stairs</title>
+    <script type="text/javascript" src="./libs/three.js"></script>
+    <script type="text/javascript" src="./libs/jquery-1.9.0.js"></script>
+    <script type="text/javascript" src="./libs/TrackballControls.js"></script>
+    <script type="text/javascript" src="./libs/stats.js"></script>
+    <script type="text/javascript" src="./libs/dat.gui.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="WebGL-output"></div>
+    <script type="text/javascript">
+
+        $(function () {
+
+            // Setup
+            const scene = new THREE.Scene();
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setClearColor(0xEEEEEE, 1.0);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap
+
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            })
+
+            function base() {
+                const baseGroup = new THREE.Group();
+
+                // Base Tube
+                const baseGeometry = new THREE.CylinderGeometry(baseRadius, baseRadius, baseHeight, 16);
+                const baseMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const base = new THREE.Mesh(baseGeometry, baseMaterial);
+                base.castShadow = true;
+                base.receiveShadow = true;
+                base.position.y = baseHeight / 2;
+                baseGroup.add(base);
+
+                // Base holder
+                const baseHolderGeometry = new THREE.CylinderGeometry(baseRadius + 1 / 4, baseRadius + 1, 1, 16);
+                const baseHolderMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const baseHolder = new THREE.Mesh(baseHolderGeometry, baseHolderMaterial);
+                baseHolder.castShadow = true;
+                baseHolder.receiveShadow = true;
+                baseHolder.position.y = 1 / 2;
+                baseGroup.add(baseHolder);
+
+                scene.add(baseGroup);
+                return baseGroup;
+            }
+
+            function step(inverted = false) {
+                let z = inverted ? -1 : 1;
+                const shape = new THREE.Shape();
+                shape.moveTo(+stepWidth * z, 0);
+                shape.moveTo(+stepWidth * z, stepWidth * 0.66);
+                shape.bezierCurveTo(+stepWidth * z, stepWidth * 0.66, 0, stepWidth, -stepWidth * z, stepWidth)
+                shape.lineTo(-stepWidth * z, 0);
+                shape.lineTo(+stepWidth * z, 0);
+                const stepGeometry = new THREE.ExtrudeGeometry(shape, {
+                    depth: stepHeight,
+                    bevelEnabled: true,
+                    bevelSize: bevelParam,
+                    bevelThickness: bevelParam,
+                });
+
+                const stepMaterial = new THREE.MeshLambertMaterial({ color: 0xF0AA60 });
+                const step = new THREE.Mesh(stepGeometry, stepMaterial);
+                step.castShadow = true;
+                step.receiveShadow = true;
+                step.rotation.x = Math.PI / 2;
+
+                scene.add(step);
+                return step;
+            }
+
+            function step_holder() {
+                const stepHolderGeometry = new THREE.BoxGeometry(lowerAxleRadius * 2, stepHolderHeight, stepSupportLength);
+                const stepHolderMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const stepHolder = new THREE.Mesh(stepHolderGeometry, stepHolderMaterial)
+                stepHolder.castShadow = true;
+                stepHolder.receiveShadow = true;
+
+                return stepHolder;
+            }
+
+            function full_step(inverted) {
+                const fullStepGroup = new THREE.Group();
+
+                // Step holder
+                const stepHolder = step_holder();
+                stepHolder.position.y = lowerAxleHeight + upperAxleHeight - stepHolderHeight;
+                stepHolder.position.z = -stepSupportLength / 2;
+                fullStepGroup.add(stepHolder);
+
+                // Lower axle
+                const lowerAxleGeometry = new THREE.CylinderGeometry(lowerAxleRadius, lowerAxleRadius, lowerAxleHeight, 16);
+                const lowerAxleMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const lowerAxle = new THREE.Mesh(lowerAxleGeometry, lowerAxleMaterial);
+                lowerAxle.castShadow = true;
+                lowerAxle.receiveShadow = true;
+                lowerAxle.position.y = (lowerAxleHeight - stepHolderHeight) / 2;
+                lowerAxle.position.z = 0;
+                fullStepGroup.add(lowerAxle);
+
+                // Upper axle
+                const upperAxleGeometry = new THREE.CylinderGeometry(upperAxleRadius, upperAxleRadius, upperAxleHeight, 16);
+                const upperAxleMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const upperAxle = new THREE.Mesh(upperAxleGeometry, upperAxleMaterial);
+                upperAxle.castShadow = true;
+                upperAxle.receiveShadow = true;
+                upperAxle.position.y = lowerAxleHeight - stepHolderHeight / 2 + upperAxleHeight / 2;
+                upperAxle.position.z = 0;
+                fullStepGroup.add(upperAxle);
+
+                // Step
+                const supportedStep = step(inverted);
+                supportedStep.position.z = - stepWidth / 2;
+                supportedStep.position.y = lowerAxleHeight + upperAxleHeight - stepHolderHeight / 2 + stepHeight + bevelParam;
+                fullStepGroup.add(supportedStep);
+
+                scene.add(fullStepGroup);
+                return fullStepGroup;
+            }
+
+            function railingHolder() {
+                const railingPoints = [
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(-stepWidth - railingHolderRadius * 1.75, 0, 0),
+                    new THREE.Vector3(-stepWidth - railingHolderRadius * 1.75, railingHeight, 0)]
+                railingPoints.push(railingPoints[railingPoints.length - 1]);
+                railingPoints.unshift(railingPoints[0]);
+
+                // const curve = new THREE.SplineCurve3(railingPoints);
+                const curve = new THREE.CatmullRomCurve3(railingPoints);
+                curve.curveType = 'catmullrom';
+                curve.tension = 0.15;
+
+                const railingHolderGeometry = new THREE.TubeGeometry(curve, 64, railingHolderRadius, 8, false);
+                const railingHolderMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                const railingHolder = new THREE.Mesh(railingHolderGeometry, railingHolderMaterial);
+                railingHolder.castShadow = true;
+                railingHolder.receiveShadow = true;
+
+                return railingHolder;
+            }
+
+            // Render once:
+            {
+                // Axes
+                // const axes = new THREE.AxesHelper(50);
+                // scene.add(axes);
+
+                // Plane
+                const planeGeometry = new THREE.PlaneGeometry(200, 200);
+                const planeMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
+
+                const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+                plane.receiveShadow = true;
+                plane.rotation.x = -0.5 * Math.PI;
+                scene.add(plane);
+
+                // Camera
+                camera.position.x = -160;
+                camera.position.y = 140;
+                camera.position.z = 80;
+
+                // Spotlight
+                const spotLight = new THREE.SpotLight(0xffffff, 0.8);
+                spotLight.position.set(-160, 100, -100);
+                spotLight.castShadow = true;
+                spotLight.shadow.mapSize.width = 4096;
+                spotLight.shadow.mapSize.height = 4096;
+                scene.add(spotLight);
+
+                // const spotlightHelper = new THREE.SpotLightHelper(spotLight);
+                // scene.add(spotlightHelper);
+
+                // Spotlight
+                const spotLight2 = new THREE.SpotLight(0x0033ff, 0.2);
+                spotLight2.position.set(400, 100, -100);
+                scene.add(spotLight2);
+
+                // const spotlightHelper2 = new THREE.SpotLightHelper(spotLight2);
+                // scene.add(spotlightHelper2);
+
+                // Ambient light
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
+                scene.add(ambientLight);
+            }
+
+            // Controls
+            var controls = new function () {
+                this.stepCount = 7;
+                this.rotation = 10;
+                this.hidePlatform = false;
+                this.hideRailings = false;
+                this.invertRailings = false;
+            }
+            const gui = new dat.GUI();
+            gui.add(controls, 'stepCount', 1, 15).step(1).name("Step Count");
+            gui.add(controls, 'rotation', -30, 30).step(1).name("Rotation");
+            gui.add(controls, 'hidePlatform').name("Hide Platform");
+            gui.add(controls, 'hideRailings').name("Hide Railings");
+            gui.add(controls, 'invertRailings').name("Invert Railings");
+
+            // Params
+            const baseHeight = 5;
+            const baseRadius = 2;
+            const lowerAxleRadius = 1.5;
+            const upperAxleRadius = lowerAxleRadius + 1 / 4;
+            const stepWidth = 8;
+            const stepHeight = 1;
+            const supportRadius = baseRadius * 0.75;
+            const stepSupportLength = stepWidth / 2 + baseRadius;
+            const stepHolderHeight = 1;
+            const lowerAxleHeight = 4.5;
+            const upperAxleHeight = 3.5;
+            const heightPerStep = lowerAxleHeight + upperAxleHeight - stepHolderHeight;
+            const bevelParam = 0.5;
+            const platformSize = 50;
+            const platformOffset = platformSize / 2;
+            const railingHeight = 25;
+            const railingHolderRadius = 0.5;
+            const railingRadius = railingHolderRadius + 0.25;
+
+            // Render every frame
+            $("#WebGL-output").append(renderer.domElement);
+            const trackballControls = new THREE.TrackballControls(camera, renderer.domElement);
+            let objs = new THREE.Group();
+            render();
+
+            function render() {
+                // Clear
+                scene.remove(objs);
+                objs = new THREE.Group();
+
+                // Load params
+                let stepCount = controls.stepCount;
+                let rotation = -controls.rotation;
+                let hidePlatform = controls.hidePlatform;
+                let hideRailings = controls.hideRailings || stepCount < 3;
+                let invertRailings = controls.invertRailings;
+
+                // Base
+                const baseGroup = base();
+                objs.add(baseGroup);
+
+                // Step
+                const stepObj = step();
+                stepObj.position.y = baseHeight + stepHeight + bevelParam;
+                stepObj.position.z = -stepWidth / 2;
+                objs.add(stepObj);
+
+                // Stairs
+                let len = -stepSupportLength;
+                let lastX = 0;
+                let lastZ = len;
+                let rads = 0;
+                let height = stepCount > 1 ? 0 : - (stepHeight + stepHolderHeight);
+                let railTops = [];
+
+                for (let i = 0; i < stepCount - 1; i++) {
+                    rads += Math.PI / 180 * rotation;
+
+                    // Step railing
+                    if (!hideRailings && i % 2 == 1) {
+                        const railing = railingHolder();
+                        railing.position.x = lastX;
+                        railing.position.z = lastZ;
+                        railing.position.y = height + heightPerStep * 2;
+                        railing.rotation.y = invertRailings ? Math.PI + rads : rads;
+
+                        railTops.push(new THREE.Vector3(
+                            railing.position.x + (Math.sin(rads + Math.PI / 2) * -(stepWidth + railingHolderRadius * 2) * (invertRailings ? -1 : 1)),
+                            railing.position.y + railingHeight,
+                            railing.position.z + (Math.cos(rads + Math.PI / 2) * -(stepWidth + railingHolderRadius * 2) * (invertRailings ? -1 : 1))));
+                        objs.add(railing);
+                    }
+
+                    // Full Step
+                    const fullStep = full_step(i % 2 == 0);
+
+                    fullStep.position.x = lastX;
+                    fullStep.position.z = lastZ;
+                    height = fullStep.position.y = (heightPerStep * (i) + baseHeight - stepHolderHeight / 2);
+
+                    lastX += len * Math.sin(rads);
+                    lastZ += len * Math.cos(rads);
+
+                    fullStep.rotation.y = rads;
+
+                    objs.add(fullStep);
+                }
+
+                // First step support and railing
+                if (stepCount > 1) {
+                    // First step support
+                    const firstStepSupport = step_holder();
+                    firstStepSupport.position.y = baseHeight - stepHolderHeight / 2;
+                    firstStepSupport.position.z = len / 2;
+                    objs.add(firstStepSupport);
+
+                    // First step railing
+                    if (!hideRailings) {
+                        const railing = railingHolder();
+                        railing.position.y = firstStepSupport.position.y;
+                        railing.rotation.y = invertRailings ? Math.PI : 0;
+
+                        railTops.unshift(new THREE.Vector3(
+                            railing.position.x - (stepWidth + railingHolderRadius * 2) * (invertRailings ? -1 : 1),
+                            railing.position.y + railingHeight,
+                            railing.position.z));
+                        objs.add(railing);
+                    }
+                }
+
+                // Railing connector
+                if (!hideRailings) {
+                    railTops.unshift(railTops[0]);
+                    railTops.push(railTops[railTops.length - 1]);
+                    // const railingCurve = new THREE.SplineCurve3(railTops);
+                    const railingCurve = new THREE.CatmullRomCurve3(railTops);
+                    railingCurve.curveType = 'catmullrom';
+                    railingCurve.tension = 0.3;
+
+                    const railingGeometry = new THREE.TubeGeometry(railingCurve, 64, railingRadius, 8, false);
+                    const railingMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+
+                    const railing = new THREE.Mesh(railingGeometry, railingMaterial);
+                    railing.castShadow = true;
+                    railing.receiveShadow = true;
+
+                    objs.add(railing);
+                }
+
+                // Second floor platform
+                if (!hidePlatform) {
+                    const secondFloorGeometry = new THREE.BoxGeometry(platformSize, platformSize, 1);
+                    const secondFloorMaterial = new THREE.MeshLambertMaterial({ color: 0xFFEECC, side: THREE.DoubleSide });
+
+                    const platform = new THREE.Mesh(secondFloorGeometry, secondFloorMaterial);
+                    platform.castShadow = true;
+                    platform.position.x = lastX - platformOffset * Math.sin(rads);
+                    platform.position.z = lastZ - platformOffset * Math.cos(rads);
+                    platform.position.y = height + lowerAxleHeight + upperAxleHeight + stepHeight;
+                    platform.rotation.x = -0.5 * Math.PI;
+                    platform.rotation.z = rads;
+                    objs.add(platform);
+
+                    // Platform support
+                    const upperSupport = step_holder();
+                    const lowerSupport = step_holder();
+
+                    upperSupport.position.y += stepHolderHeight;
+
+                    const supports = new THREE.Group();
+                    supports.add(upperSupport);
+                    supports.add(lowerSupport);
+
+                    supports.position.x = lastX - 1 * Math.sin(rads);
+                    supports.position.z = lastZ - 1 * Math.cos(rads);
+                    supports.position.y = platform.position.y - stepHolderHeight - 1;
+                    supports.rotation.y = rads;
+                    supports.scale.z = stepCount > 1 ? 1 : 1.5;
+
+                    objs.add(supports);
+                }
+
+                // Update
+                scene.add(objs);
+                renderer.render(scene, camera);
+                requestAnimationFrame(render);
+                trackballControls.update();
+            }
+        });
+    </script>
+</body>
+
+</html>
