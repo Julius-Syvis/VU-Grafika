@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>Vase</title>
+    <script type="text/javascript" src="./libs/three.js"></script>
+    <script type="text/javascript" src="./libs/jquery-1.9.0.js"></script>
+    <script type="text/javascript" src="./libs/ConvexGeometry.js"></script>
+    <script type="text/javascript" src="./libs/dat.gui.js"></script>
+    <script type="text/javascript" src="./libs/TrackballControls.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="WebGL-output"></div>
+    <script type="text/javascript">
+        $(function () {
+            // Setup
+            const scene = new THREE.Scene();
+
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setClearColor(0xEEEEEE, 1.0);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 20000); // 1000
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            })
+
+            // Funcs
+            function generateCylinderPoints(height, radius, numPoints, uniform = true) {
+                var points = [];
+
+                for (let i = 0; i < numPoints; i++) {
+                    if (!uniform) {
+                        // 0. Filter
+                        let x = Math.random() * radius * 2 - radius;
+                        let y = Math.random() * height * 2 - height;
+                        let z = Math.random() * radius * 2 - radius;
+
+                        if (Math.sqrt(x * x + z * z) <= radius) {
+                            points.push(new THREE.Vector3(x, y, z));
+                        }
+                    }
+                    else {
+                        // 1. Uniform
+                        let phi = Math.random() * 2 * Math.PI;
+                        let r = Math.sqrt(radius * radius * Math.random());
+
+                        let x = r * Math.cos(phi);
+                        let y = Math.random() * height - height / 2;
+                        let z = r * Math.sin(phi);
+
+                        points.push(new THREE.Vector3(x, y, z));
+                    }
+                }
+
+                return points;
+            }
+
+            function createPoints(points) {
+                spGroup = new THREE.Object3D();
+                let material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                points.forEach(function (point) {
+                    let spGeom = new THREE.SphereGeometry(0.3);
+                    let spMesh = new THREE.Mesh(spGeom, material);
+                    spMesh.position = point;
+                    spGroup.add(spMesh);
+                });
+
+                return spGroup;
+            }
+
+            function createCylinderMesh(points, showFrame = false, opacity = 1, wrapTexture = false) {
+                let convexGeometry = new THREE.ConvexGeometry(points);
+                let meshMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: opacity, side: THREE.DoubleSide });
+                // let meshMaterial = new THREE.MeshLambertMaterial({ transparent: true, opacity: opacity, side: THREE.DoubleSide });
+                if (wrapTexture) {
+                    meshMaterial.map = texture;
+                }
+                else {
+                    meshMaterial.color.set(0x4AAA50);
+                }
+
+                let wireFrameMat = new THREE.MeshBasicMaterial({ wireframe: showFrame, color: 0xffff00 });
+
+                let mesh = THREE.SceneUtils.createMultiMaterialObject(convexGeometry, [meshMaterial, wireFrameMat]);
+                if (wrapTexture) {
+                    generateWrapper(mesh);
+                }
+                return mesh;
+            }
+
+            function generateWrapper(mesh) {
+                geometry = mesh.children[0].geometry;
+
+                geometry.faceVertexUvs[0].forEach((uvFace, faceIdx) => {
+                    let face = geometry.faces[faceIdx];
+                    let vertexIdx = [face.a, face.b, face.c];
+                    let phis = [];
+                    let uvs = [];
+
+                    vertexIdx.forEach((idx, i) => {
+                        let vertex = geometry.vertices[idx];
+                        let uv = uvFace[i];
+                        uvs.push(uv);
+
+                        let x = vertex.x;
+                        let y = vertex.y;
+                        let z = vertex.z;
+
+                        let phi = Math.atan2(z, x);
+                        if (x < 0)
+                            phis.push(phi);
+
+                        let u = (phi + Math.PI) / (2 * Math.PI);
+                        let v = (y + cylinderHeight / 2) / cylinderHeight;
+
+                        uvFace[i].x = u;
+                        uvFace[i].y = v;
+                    });
+
+                    // Fix stripe
+                    if (phis.length == 3) {
+                        let posCount = phis.filter(phi => phi >= 0).length;
+
+                        if (posCount == 2) {
+                            phis.forEach((phi, i) => {
+                                if (phi < 0) {
+                                    uvs[i].x += 1;
+                                }
+                            })
+                        }
+                        else if (posCount == 1) {
+                            phis.forEach((phi, i) => {
+                                if (phi > 0) {
+                                    uvs[i].x -= 1;
+                                }
+                            })
+                        }
+                    }
+                });
+            }
+
+            function generateMesh() {
+                return createCylinderMesh(points, controls.showWireFrame, controls.cylinderOpacity, controls.showWrapper);
+            }
+
+            function parametrizedCylinder(u, v) {
+                u *= controls.uLimit;
+                v *= controls.vLimit;
+
+                let phi = Math.PI * 2 * u;
+
+                let x = cylinderRadius * Math.cos(phi);
+                let y = v * cylinderHeight - cylinderHeight / 2;
+                let z = cylinderRadius * Math.sin(phi);
+
+                return new THREE.Vector3(x, y, z);
+            }
+
+            function createParametrizedCylinder() {
+                var meshGeometry = new THREE.ParametricGeometry(parametrizedCylinder, 120, 120);
+                var meshMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                var mesh = new THREE.Mesh(meshGeometry, meshMaterial);
+                return mesh;
+            }
+
+            function loadTexture() {
+                let texture = THREE.ImageUtils.loadTexture('texture.png');
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(controls.uRepeat, controls.vRepeat);
+                return texture;
+            }
+
+            function redrawRandomizedCylinder() {
+                points = generateCylinderPoints(cylinderHeight, cylinderRadius, controls.numPoints);
+                renderedPoints = createPoints(points);
+                cylinderMesh = generateMesh();
+            }
+
+            // Render once:
+            {
+                // Axes
+                // const axes = new THREE.AxisHelper(50);
+                // scene.add(axes);
+
+                // Camera
+                camera.position.x = -40;
+                camera.position.y = 40;
+                camera.position.z = 40;
+            }
+
+            // Controls
+            var controls = new function () {
+                this.redraw = function () {
+                    redrawRandomizedCylinder();
+                }
+                this.numPoints = 200;
+                this.showPoints = false;
+                this.showWireFrame = false;
+                this.cylinderOpacity = 1;
+                this.showIdeal = false;
+                this.uLimit = 1;
+                this.vLimit = 1;
+                this.uRepeat = 2;
+                this.vRepeat = 1;
+                this.showWrapper = true;
+            }
+            const gui = new dat.GUI();
+
+            const cylinderGui = gui.addFolder("Cylinder");
+            {
+                cylinderGui.add(controls, 'redraw').name("Redraw");
+                cylinderGui.add(controls, 'numPoints', 50, 1500).step(50).name("Point Count").onChange(function () {
+                    redrawRandomizedCylinder();
+                });
+                cylinderGui.add(controls, 'showPoints').name("Show Points");
+                cylinderGui.add(controls, 'showWireFrame').name("Show Frame").onChange(function () {
+                    cylinderMesh = generateMesh();
+                });
+                cylinderGui.add(controls, 'cylinderOpacity', 0, 1).name("Opacity").onChange(function () {
+                    cylinderMesh = generateMesh();
+                });
+            }
+
+            const textureGui = gui.addFolder("Ideal Texture");
+            {
+                textureGui.add(controls, 'showIdeal').name("Show Ideal");
+                textureGui.add(controls, 'uLimit', 0, 1).name("U Limit").onChange(function () {
+                    idealMesh = createParametrizedCylinder();
+                });
+                textureGui.add(controls, 'vLimit', 0, 1).name("V Limit").onChange(function () {
+                    idealMesh = createParametrizedCylinder();
+                });
+            }
+
+            const wrapGui = gui.addFolder("Wrapped Texture");
+            {
+                wrapGui.add(controls, 'showWrapper').name("Show Wrapper").onChange(function () {
+                    cylinderMesh = generateMesh();
+                });
+                wrapGui.add(controls, 'uRepeat', 1, 5).step(1).name("U Repeat").onChange(function () {
+                    texture = loadTexture();
+                    idealMesh = createParametrizedCylinder();
+                    cylinderMesh = generateMesh();
+                });
+                wrapGui.add(controls, 'vRepeat', 1, 5).step(1).name("V Repeat").onChange(function () {
+                    texture = loadTexture();
+                    idealMesh = createParametrizedCylinder();
+                    cylinderMesh = generateMesh();
+                });
+            }
+
+            // Consts
+            const cylinderHeight = 35;
+            const cylinderRadius = 12;
+            let texture = loadTexture();
+
+            // I. Generate a randomized cylinder
+            redrawRandomizedCylinder();
+
+            // II. Generate an ideal cylinder
+            let idealMesh = createParametrizedCylinder();
+
+            // Render every frame
+            $("#WebGL-output").append(renderer.domElement);
+            const trackballControls = new THREE.TrackballControls(camera, renderer.domElement);
+
+            let objs = new THREE.Object3D();
+            scene.add(objs);
+
+            (function render() {
+                objs.remove(...objs.children);
+
+                if (controls.showPoints) {
+                    objs.add(renderedPoints);
+                }
+                objs.add(cylinderMesh);
+                if (controls.showIdeal) {
+                    objs.add(idealMesh);
+                }
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(render);
+                trackballControls.update();
+            })();
+        });
+
+
+    </script>
+</body>
+
+</html>
