@@ -1,0 +1,517 @@
+<html>
+
+<head>
+    <title>Chess Board</title>
+    <script type="text/javascript" src="./libs/three.js"></script>
+    <script type="text/javascript" src="./libs/jquery-1.9.0.js"></script>
+    <script type="text/javascript" src="./libs/TrackballControls.js"></script>
+    <script type="text/javascript" src="./libs/stats.js"></script>
+    <script type="text/javascript" src="./libs/dat.gui.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="WebGL-output"></div>
+    <script type="text/javascript">
+
+        $(function () {
+
+            function getBasePoints() {
+
+                return [
+                    new THREE.Vector3(a, 0, a),
+                    new THREE.Vector3(a, 0, -a),
+                    new THREE.Vector3(b, -c, b),
+                    new THREE.Vector3(b, -c, -b),
+                    new THREE.Vector3(-a, 0, a),
+                    new THREE.Vector3(-a, 0, -a),
+                    new THREE.Vector3(-b, -c, b),
+                    new THREE.Vector3(-b, -c, -b),
+                ];
+            }
+
+            function getBaseFaces() {
+                return [
+                    new THREE.Face3(0, 2, 1),
+                    new THREE.Face3(1, 2, 3),
+                    new THREE.Face3(0, 4, 2),
+                    new THREE.Face3(2, 4, 6),
+                    new THREE.Face3(4, 5, 6),
+                    new THREE.Face3(5, 7, 6),
+                    new THREE.Face3(1, 3, 5),
+                    new THREE.Face3(3, 7, 5),
+                    new THREE.Face3(2, 6, 7),
+                    new THREE.Face3(2, 7, 3),
+                    // new THREE.Face3(0, 1, 5),
+                    // new THREE.Face3(0, 5, 4),
+                ]
+            }
+
+            function getBase() {
+                const geometry = new THREE.Geometry();
+                geometry.vertices = getBasePoints();
+                geometry.faces = getBaseFaces();
+
+                const material = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.receiveShadow = true;
+                mesh.castShadow = true;
+
+                return mesh;
+            }
+
+            function getRookPoints() {
+                return [
+                    // Base
+                    new THREE.Vector2(0, 0),
+                    new THREE.Vector2(4.35, 0),
+                    new THREE.Vector2(4.35, 1),
+
+                    // First recess 
+                    new THREE.Vector2(3.8, 1),
+                    new THREE.Vector2(3.9, 1.2),
+                    new THREE.Vector2(3.9, 1.5),
+                    new THREE.Vector2(3.8, 1.8),
+                    new THREE.Vector2(4, 1.8),
+
+                    // First bulge
+                    new THREE.Vector2(4.2, 2),
+                    new THREE.Vector2(4.2, 2.5),
+                    new THREE.Vector2(3.9, 2.8),
+                    new THREE.Vector2(3.5, 3.2),
+                    new THREE.Vector2(3.3, 3.6),
+
+                    // Trunk
+                    new THREE.Vector2(3.2, 4),
+                    new THREE.Vector2(2.8, 4),
+                    new THREE.Vector2(2.8, 4.5),
+                    new THREE.Vector2(3.2, 4.5),
+                    new THREE.Vector2(3.2, 5),
+                    new THREE.Vector2(2.8, 5),
+                    new THREE.Vector2(2.6, 9),
+                    new THREE.Vector2(2.4, 12),
+
+                    // Trunk-to-Crown Base
+                    new THREE.Vector2(2.8, 12),
+                    new THREE.Vector2(2.8, 12.5),
+                    new THREE.Vector2(3, 12.5),
+                    new THREE.Vector2(3, 13),
+
+                    // Crown Base
+                    new THREE.Vector2(3, 14),
+                    new THREE.Vector2(3, 14),
+                    new THREE.Vector2(2.3, 14),
+                    new THREE.Vector2(2.3, 14),
+                    new THREE.Vector2(2.3, 13),
+                    new THREE.Vector2(0, 13),
+                ]
+            }
+
+            function getRook(color) {
+                const rook = new THREE.Group();
+
+                const points = getRookPoints();
+                const geometry = new THREE.LatheGeometry(points, 100);
+                const material = getRookMaterial(color);
+                const lathe = new THREE.Mesh(geometry, material);
+                lathe.castShadow = true;
+                lathe.receiveShadow = true;
+                rook.add(lathe);
+
+                const crown = getCrown(color);
+                crown.castShadow = true;
+                crown.receiveShadow = true;
+                rook.add(crown);
+
+                return rook;
+            }
+
+            function getRookMaterial(color) {
+                const material = new THREE.MeshPhongMaterial({ color: color });
+                return material;
+            }
+
+            function getCrown(color) {
+                const crown = new THREE.Group();
+
+                for (let i = 0; i < 8; i++) {
+                    let tooth = generateTooth(i * Math.PI / 4, Math.PI / 8, 20, 2.3, 2.99, color);
+                    crown.add(tooth);
+                }
+
+                crown.rotation.x = Math.PI / 2;
+                crown.position.y = 14.7;
+
+                return crown;
+            }
+
+            function generateTooth(initialPhi, phiSize, segments, innerSize, outerSize, color) {
+                const tooth = new THREE.Shape();
+
+                tooth.moveTo(innerSize * Math.sin(initialPhi), innerSize * Math.cos(initialPhi));
+
+                for (let i = 0; i <= segments; i++) {
+                    let phi = i / segments * phiSize + initialPhi;
+                    let x = innerSize * Math.sin(phi);
+                    let y = innerSize * Math.cos(phi);
+
+                    tooth.lineTo(x, y);
+                }
+                for (let i = 0; i <= segments; i++) {
+                    let phi = -i / segments * phiSize + initialPhi + phiSize;
+                    let x = outerSize * Math.sin(phi);
+                    let y = outerSize * Math.cos(phi);
+
+                    tooth.lineTo(x, y);
+                }
+
+                const extrudedGeometry = new THREE.ExtrudeGeometry(tooth, { depth: 1, bevelEnabled: false });
+                const extrudedMesh = new THREE.Mesh(extrudedGeometry, getRookMaterial(color));
+                extrudedMesh.castShadow = true;
+                extrudedMesh.receiveShadow = true;
+
+                return extrudedMesh;
+            }
+
+            function getCameraModel(dotCentered) {
+                const cameraModel = new THREE.Group();
+
+                // const axes = new THREE.AxesHelper(10);
+                // cameraModel.add(axes);
+
+                const bodyGeometry = new THREE.BoxGeometry(3, 5, 8);
+                const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                cameraModel.add(body);
+
+                const scopeGeometry = new THREE.BoxGeometry(1, 2, 10);
+                const scopeMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const scope = new THREE.Mesh(scopeGeometry, scopeMaterial);
+                scope.position.x = 2;
+                scope.position.z = -0.5;
+                cameraModel.add(scope);
+
+                const lensGeometry = new THREE.ConeGeometry(1.5, 4, 4);
+                const lensMaterial = new THREE.MeshLambertMaterial({ color: 0x666666 });
+                const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+                lens.position.z = 4;
+                lens.rotation.x = -Math.PI / 2;
+                lens.rotation.y = Math.PI / 4;
+                cameraModel.add(lens);
+
+                let r = 2.5;
+                const forwardMagazineGeometry = new THREE.CylinderGeometry(r, r, 1, 16);
+                const forwardMagazineMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const forwardMagazine = new THREE.Mesh(forwardMagazineGeometry, forwardMagazineMaterial);
+                forwardMagazine.rotation.z = Math.PI / 2;
+                forwardMagazine.position.z = -2.9;
+                forwardMagazine.position.y = 4;
+                cameraModel.add(forwardMagazine);
+
+                const rearMagazine = forwardMagazine.clone();
+                rearMagazine.position.z = forwardMagazine.position.z + r * 2 - 0.5;
+                cameraModel.add(rearMagazine);
+
+                const camera = new THREE.PerspectiveCamera(controls.c1Fov, window.innerWidth / window.innerHeight, 0.1, 150);
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+                camera.position.z = 6;
+                camera.lookAt(new THREE.Vector3(0, 0, 10));
+                cameraModel.add(camera);
+
+                return cameraModel;
+            }
+
+            // Controls
+            let controls = new function () {
+                this.swap1 = function () {
+                    selectedCamera = camera;
+                    trackballControls.enabled = true;
+                }
+                this.c1Fov = 45;
+
+                this.swap2 = function () {
+                    selectedCamera = camera2;
+                    trackballControls.enabled = false;
+
+                }
+                this.showC2 = true;
+                this.dolly = 0.5;
+                this.showC2Grid = false;
+
+                this.swap3 = function () {
+                    selectedCamera = camera3;
+                    trackballControls.enabled = false;
+                }
+                this.showC3 = true;
+                this.showC3Grid = false;
+                this.stationaryC3Point = false;
+
+                this.whiteRookX = -15;
+                this.whiteRookZ = -5;
+                this.hideWhiteRook = false;
+
+                this.blackRookStartX = 25;
+                this.blackRookFinalX = 25;
+                this.blackRookStartZ = -25;
+                this.blackRookFinalZ = 25;
+                this.showBlackPath = false;
+                this.hideBlackRook = false;
+                this.pauseBlackRook = false;
+            }
+            const gui = new dat.GUI();
+            gui.add(controls, "swap1").name("Camera 1");
+            gui.add(controls, "c1Fov", 10, 100).name("FOV").onChange(function () {
+                camera.fov = controls.c1Fov;
+                camera.updateProjectionMatrix();
+            });
+
+            gui.add(controls, "swap2").name("Camera 2");
+            gui.add(controls, "showC2").name("Show");
+            gui.add(controls, "showC2Grid").name("Show Grid");
+            gui.add(controls, "dolly", 0, 1).name("Dolly Zoom");
+
+            gui.add(controls, "swap3").name("Camera 3");
+            gui.add(controls, "showC3").name("Show");
+            gui.add(controls, "showC3Grid").name("Show Grid");
+            gui.add(controls, "stationaryC3Point").name("Stationary Point");
+
+            const whiteRookGui = gui.addFolder("White Rook");
+            whiteRookGui.add(controls, "whiteRookX", -35, 35).step(5).name("X");
+            whiteRookGui.add(controls, "whiteRookZ", -35, 35).step(5).name("Z");
+            whiteRookGui.add(controls, "hideWhiteRook").name("Hide");
+
+            const blackRookGui = gui.addFolder("Black Rook");
+            blackRookGui.add(controls, "blackRookStartX", -35, 35).step(5).name("Start X");
+            blackRookGui.add(controls, "blackRookFinalX", -35, 35).step(5).name("Final X");
+            // blackRookGui.add(controls, "blackRookStartZ", -35, 35).step(5).name("Start Z");
+            // blackRookGui.add(controls, "blackRookFinalZ", -35, 35).step(5).name("Final Z");
+            blackRookGui.add(controls, "showBlackPath").name("Show Path");
+            blackRookGui.add(controls, "hideBlackRook").name("Hide");
+            blackRookGui.add(controls, "pauseBlackRook").name("Pause").onChange(nowHidden => {
+                if (nowHidden) {
+                    clock.stop();
+                } else {
+                    clock.start();
+                }
+            });
+
+            // Consts
+            const loader = new THREE.TextureLoader();
+            const texture = loader.load('texture.png');
+            const a = 40;
+            const b = a + 2;
+            const c = 5;
+            const cycleSeconds = 3;
+
+            // Setup
+            const scene = new THREE.Scene();
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setClearColor(0xEEEEEE, 1.0);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            const camera = new THREE.PerspectiveCamera(controls.c1Fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Render once:
+            {
+                // Axes
+                // const axes = new THREE.AxesHelper(50);
+                // scene.add(axes);
+
+                // Plane
+                const planeGeometry = new THREE.PlaneGeometry(a * 2, a * 2);
+                const planeMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide, map: texture });
+
+                const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+                plane.receiveShadow = true;
+                plane.rotation.x = -0.5 * Math.PI;
+                scene.add(plane);
+
+                // Camera
+                camera.position.x = 50;
+                camera.position.y = 70;
+                camera.position.z = -90;
+                camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+                // Spotlight
+                const spotLight = new THREE.SpotLight(0xffffff, 0.8);
+                spotLight.position.set(-16, 60, -70);
+                spotLight.castShadow = true;
+                spotLight.shadow.mapSize.width = 16384;
+                spotLight.shadow.mapSize.height = 16384;
+                scene.add(spotLight);
+
+                // const spotlightHelper = new THREE.SpotLightHelper(spotLight);
+                // scene.add(spotlightHelper);
+
+                // Ambient light
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+                scene.add(ambientLight);
+            }
+
+            // In-scene objects
+            const base = getBase();
+            scene.add(base);
+
+            const whiteRook = getRook(0xffffff);
+            scene.add(whiteRook);
+
+            const blackRook = getRook(0x444444);
+            scene.add(blackRook);
+
+            const camera2Model = getCameraModel();
+            scene.add(camera2Model);
+            const camera2 = camera2Model.children[camera2Model.children.length - 1];
+            const camera2Helper = new THREE.CameraHelper(camera2);
+
+            const camera3Model = getCameraModel();
+            scene.add(camera3Model);
+            const camera3 = camera3Model.children[camera3Model.children.length - 1];
+            const camera3Helper = new THREE.CameraHelper(camera3);
+
+            // Render every frame
+            $("#WebGL-output").append(renderer.domElement);
+            let selectedCamera = camera;
+            const trackballControls = new THREE.TrackballControls(camera, renderer.domElement);
+            let objs = new THREE.Group();
+            const clock = new THREE.Clock();
+            let t = 0;
+            clock.start();
+
+            render();
+            function render() {
+                // Clear
+                scene.remove(objs);
+                objs = new THREE.Group();
+
+                // White Rook movement
+                {
+                    whiteRook.position.x = controls.whiteRookX;
+                    whiteRook.position.z = controls.whiteRookZ;
+                    whiteRook.visible = !controls.hideWhiteRook;
+                }
+
+
+                // Black Rook movement
+                {
+                    blackRook.visible = !controls.hideBlackRook;
+                    if (!controls.pauseBlackRook) {
+                        let secondsPassed = clock.getElapsedTime();
+                        t += secondsPassed / cycleSeconds;
+                        t %= 2;
+                        clock.stop();
+                        clock.start();
+                    }
+
+                    // t: [0-2]
+                    let pos = (Math.sin(t * Math.PI) + 1) / 2;
+
+                    blackRook.position.x = pos * controls.blackRookStartX + (1 - pos) * controls.blackRookFinalX;
+                    blackRook.position.z = pos * controls.blackRookStartZ + (1 - pos) * controls.blackRookFinalZ;
+
+                    // Black Rook Path
+                    {
+                        const material = new THREE.LineBasicMaterial({
+                            color: 0xff00ff
+                        });
+
+                        const points = [
+                            new THREE.Vector3(controls.blackRookStartX, 0, controls.blackRookStartZ),
+                            new THREE.Vector3(controls.blackRookFinalX, 0, controls.blackRookFinalZ),
+                        ];
+
+                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+                        const line = new THREE.Line(geometry, material);
+
+                        if (controls.showBlackPath) {
+                            objs.add(line);
+                        }
+                    }
+                }
+
+                // Camera update
+                {
+                    // Camera 2
+                    let distH = 100;
+                    let distV = 25;
+                    let rookCenterY = 12;
+                    camera2Model.lookAt(whiteRook.position.x, whiteRook.position.y + rookCenterY, whiteRook.position.z);
+                    camera2Model.position.x = whiteRook.position.x;
+                    camera2Model.position.y = rookCenterY + distV;
+                    camera2Model.position.z = whiteRook.position.z - distH;
+                    camera2Model.visible = controls.showC2;
+
+                    if (controls.showC2Grid) {
+                        camera2Helper.update();
+                        objs.add(camera2Helper);
+                    }
+
+                    // Dolly
+                    let maxDolly = 5 / 7;
+                    let zOffset = maxDolly * distH * controls.dolly
+                    let yOffset = maxDolly * distV * controls.dolly
+                    let dist = Math.sqrt(Math.pow(distH - zOffset, 2) + Math.pow(distV - yOffset, 2));
+                    camera2Model.position.z += zOffset;
+                    camera2Model.position.y -= yOffset;
+                    camera2.far = dist + 50;
+                    camera2.fov = (180 / Math.PI) * 2 * Math.atan(40 / (2 * dist));
+                    camera2.updateProjectionMatrix();
+
+                    // Camera 3
+                    camera3Model.position.y = 45;
+                    camera3Model.position.x = (controls.blackRookStartX + controls.blackRookFinalX) * 0.5;
+                    camera3Model.position.z = (controls.blackRookStartZ + controls.blackRookFinalZ) * 0.5;
+                    camera3Model.lookAt(blackRook.position.x, blackRook.position.y + 5, blackRook.position.z);
+                    if (controls.stationaryC3Point) {
+                        let vector = new THREE.Vector3();
+                        camera3Model.getWorldDirection(vector);
+                        camera3Model.position.addScaledVector(vector, -6);
+                    }
+
+                    // Rotate camera when close
+                    let limit = Math.PI / 8;
+                    let dif = camera3Model.rotation.x - Math.PI / 2;
+                    if (Math.abs(dif) < limit) {
+                        let ratio = Math.sin(dif / limit * Math.PI / 2);
+                        if (dif < 0) {
+                            camera3Model.rotation.z -= Math.PI / 2 + ratio * Math.PI / 2;
+                        } else {
+                            camera3Model.rotation.z += Math.PI / 2 - ratio * Math.PI / 2;
+                        }
+                    }
+                    camera3Model.visible = controls.showC3;
+
+                    if (controls.showC3Grid) {
+                        camera3Helper.update();
+                        objs.add(camera3Helper);
+                    }
+                }
+
+                // Update
+                scene.add(objs);
+                requestAnimationFrame(render);
+                renderer.render(scene, selectedCamera);
+                trackballControls.update();
+            }
+        });
+    </script>
+</body>
+
+</html>
