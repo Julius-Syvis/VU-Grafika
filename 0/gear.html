@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=windows-1252" />
+</head>
+
+<body>
+    <canvas id="myCanvas" width="480" height="300"></canvas>
+    <script>
+        // Setup
+
+        var canvas = document.getElementById("myCanvas");
+        var ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+
+        // Funcs
+
+        function drawGear(x, y, r1, r2, r3, n, offsetDeg) {
+            var nth = Math.PI / n;
+            var smooth = nth / 5;
+
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (i = 0; i < n; i++) {
+                // Inner circle
+                ctx.arc(
+                    x,
+                    y,
+                    r1,
+                    offsetDeg + nth * (i * 2) + smooth,
+                    offsetDeg + nth * (i * 2 + 1) - smooth,
+                    false
+                );
+
+                // Outer circle
+                ctx.arc(
+                    x,
+                    y,
+                    r2,
+                    offsetDeg + nth * (i * 2 + 1) + smooth,
+                    offsetDeg + nth * (i * 2 + 2) - smooth,
+                    false
+                );
+            }
+
+            ctx.closePath();
+
+            ctx.arc(x, y, r3, 0, Math.PI * 2, true);
+            ctx.fill();
+        }
+
+        function drawOffsetGear(gear, offset) {
+            drawGear(gear.x, gear.y, gear.r1, gear.r2, gear.r3, gear.n, offset);
+        }
+
+        function drawBorder(x, y, w, h) {
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.closePath();
+            ctx.stroke();
+        }
+
+        function clear() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function getPointOnChain(gear1, gear2, offset) {
+            var gear1top = { x: gear1.x, y: gear1.y - gear1.r };
+            var gear2top = { x: gear2.x, y: gear2.y - gear2.r };
+
+            var gear1bot = { x: gear1.x, y: gear1.y + gear1.r };
+            var gear2bot = { x: gear2.x, y: gear2.y + gear2.r };
+
+            var line1len = Math.sqrt(
+                Math.pow(gear1top.x - gear2top.x, 2) +
+                Math.pow(gear1top.y - gear2top.y, 2)
+            );
+            var line2len = line1len;
+
+            var gear1len = gear1.c / 2;
+            var gear2len = gear2.c / 2;
+
+            // Direction - clockwise
+            // Start point - gear1top
+
+            var totalLen = line1len + line2len + gear1len + gear2len;
+            pos = offset % totalLen;
+
+            if (pos < line1len) {
+                return getPointOnLine(
+                    gear1top.x,
+                    gear1top.y,
+                    gear2top.x,
+                    gear2top.y,
+                    pos / line1len
+                );
+            } else if (pos < line1len + gear2len) {
+                return getPointOnCircle(
+                    gear2.x,
+                    gear2.y,
+                    gear2.r,
+                    ((pos - line1len) / gear2len) * Math.PI - Math.PI / 2
+                );
+            } else if (pos < line1len + gear2len + line2len) {
+                return getPointOnLine(
+                    gear2bot.x,
+                    gear2bot.y,
+                    gear1bot.x,
+                    gear1bot.y,
+                    (pos - line1len - gear2len) / line2len
+                );
+            } else {
+                return getPointOnCircle(
+                    gear1.x,
+                    gear1.y,
+                    gear1.r,
+                    ((pos - line1len - gear2len - line2len) / gear1len) * Math.PI +
+                    Math.PI / 2
+                );
+            }
+        }
+
+        function drawPoint(point, r, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function getPointOnLine(x, y, x_, y_, t) {
+            function lerp(p1, p2, t) {
+                return p1 * (1 - t) + p2 * t;
+            }
+
+            return { x: lerp(x, x_, t), y: lerp(y, y_, t) };
+        }
+
+        function getPointOnCircle(x, y, r, rad) {
+            return { x: x + Math.cos(rad) * r, y: y + Math.sin(rad) * r };
+        }
+
+        function drawLine(point1, point2, width, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(point1.x, point1.y);
+            ctx.lineTo(point2.x, point2.y);
+            ctx.stroke();
+        }
+
+        // Main code
+
+        // Variables
+        var fps = 60;
+        var ups = 60; // units per second
+        var k = 15;
+
+        var first_gear = {
+            x: 75,
+            y: 150,
+            r1: 32,
+            r2: 40,
+            r3: 7,
+            n: 12,
+        };
+        first_gear.r = (first_gear.r1 + first_gear.r2) / 2;
+        first_gear.c = 2 * Math.PI * first_gear.r;
+        dist = first_gear.c / first_gear.n;
+
+        var second_gear = {
+            y: 150,
+            r1: 56,
+            r2: 64,
+            r3: 7,
+            n: 20,
+        };
+        second_gear.r = (second_gear.r1 + second_gear.r2) / 2;
+        second_gear.c = second_gear.r * 2 * Math.PI;
+        second_gear.x =
+            first_gear.x +
+            Math.sqrt(
+                Math.pow(k, 2) * Math.pow(dist, 2) -
+                Math.pow(second_gear.r - first_gear.r, 2)
+            );
+
+        var speed = ups / fps;
+        var total = 0;
+
+        setInterval(() => {
+            clear();
+
+            // Border
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            drawBorder(0, 0, canvas.width, canvas.height);
+
+            // Two gears
+            ctx.fillStyle = "rgb(75, 75, 75, 1)";
+            total += speed;
+
+            rot = (total / first_gear.c) * Math.PI * 2;
+            drawOffsetGear(first_gear, rot - Math.PI / first_gear.n / 2);
+
+            rot_ = (total / second_gear.c) * Math.PI * 2;
+            drawOffsetGear(second_gear, rot_ - Math.PI / second_gear.n / 2);
+
+            // Chain
+            total_points = first_gear.n / 2 + second_gear.n / 2 + k * 2;
+
+            points = [];
+            for (i = 0; i < total_points; i++) {
+                var point = getPointOnChain(
+                    first_gear,
+                    second_gear,
+                    total + dist * i
+                );
+                points.push(point);
+            }
+
+            // First, draw all connections
+            for (i = 0; i < total_points; i++) {
+                var point1 = points[i];
+                var point2 = points[(i + 1) % total_points];
+
+                if (i % 2 == 0) {
+                    var chainWidth = 6;
+                    var chainColor = "black";
+                } else {
+                    var chainWidth = 4;
+                    var chainColor = "grey";
+                }
+
+                drawLine(point1, point2, chainWidth, chainColor);
+            }
+
+            // Then, draw all points
+            for (i = 0; i < total_points; i++) {
+                var point = points[i];
+                drawPoint(point, 5, "black");
+                drawPoint(point, 2.5, "rgba(200, 200, 200)");
+            }
+        }, 1000 / fps);
+    </script>
+</body>
+
+</html>
